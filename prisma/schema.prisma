@@ -1,0 +1,96 @@
+generator client {
+  provider        = "prisma-client-js"
+  // Habilita o suporte nativo a extensões do PostgreSQL (necessário para o pgvector)
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [vector]
+}
+
+// ------------------------------------------------------------------
+// 1. TABELA DO CLIENTE / USUÁRIO
+// ------------------------------------------------------------------
+model User {
+  id    String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name  String
+  email String @unique
+
+  // Dados estruturados extraídos do formulário de Onboarding (ex: Tally) [cite: 30]
+  // Fundamentais para servir como "âncora" para gerações de copy [cite: 31]
+  tone_of_voice   String?
+  target_audience String?
+  business_goals  String?
+
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @default(now()) @db.Timestamptz(6)
+
+  // Relacionamentos
+  knowledge_vectors KnowledgeVector[]
+  chat_sessions     ChatSession[]
+  media_processes   MediaProcess[]
+}
+
+// ------------------------------------------------------------------
+// 2. O "CÉREBRO" DE LONGO PRAZO (RAG & PGVECTOR) [cite: 60, 74]
+// ------------------------------------------------------------------
+model KnowledgeVector {
+  id      String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id String @db.Uuid
+
+  // O texto em si (chunk da página de vendas, transcrição de reel, etc) [cite: 36]
+  content String
+
+  // O vetor numérico gerado pela OpenAI (geralmente 1536 dimensões) 
+  embedding Unsupported("vector(1536)")
+
+  // Metadados para filtrar entre "estilos de escrita passados" e "diretrizes atuais" [cite: 66]
+  metadata Json?
+
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  // Índice para acelerar a busca por similaridade de cosseno [cite: 64]
+  @@index([embedding])
+}
+
+// ------------------------------------------------------------------
+// 3. MEMÓRIA DE CURTO PRAZO (CHAT) 
+// ------------------------------------------------------------------
+model ChatSession {
+  id         String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id    String @db.Uuid
+  session_id String @unique
+
+  // Armazena o histórico da conversa atual para a IA entender o contexto 
+  history Json
+
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @default(now()) @db.Timestamptz(6)
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+}
+
+// ------------------------------------------------------------------
+// 4. LINHA DE MONTAGEM DE MÍDIA (VIDEOS E ANÚNCIOS) 
+// ------------------------------------------------------------------
+model MediaProcess {
+  id           String @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id      String @db.Uuid
+  original_url String
+  status       String @default("PENDING") // PENDING, EXTRACTING_AUDIO, TRANSCRIBING, COMPLETED
+
+  // "INSTAGRAM_VIDEO", "AD_IMAGE" [cite: 54]
+  media_type String
+
+  // Resultado textual (Transcrição do Whisper ou Descrição do GPT-4o) [cite: 48, 54]
+  extracted_text String?
+
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @default(now()) @db.Timestamptz(6)
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+}
