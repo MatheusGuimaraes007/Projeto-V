@@ -2,11 +2,11 @@ import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
-import { InstagramModule } from './instagram/instagram.module';
+import { MediaModule } from './media/media.module';
 
 @Module({
-  imports: [PrismaModule, InstagramModule],
+  imports: [PrismaModule, MediaModule],
   controllers: [AppController],
   providers: [AppService],
 })
-export class AppModule {}
+export class AppModule { }
